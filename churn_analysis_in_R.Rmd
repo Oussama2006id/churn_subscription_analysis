@@ -32,7 +32,7 @@ for preparing and importing dataset or the csv
 ```{r , include=TRUE}
 library(tidyverse)
 library(readr)
-customer_subscription_churn_usage_patterns <- read_csv("customer_subscription_churn_usage_patterns.csv", 
+customer_subscription_churn_usage_patterns <- read_csv("data/customer_subscription_churn_usage_patterns.csv", 
                                                        col_types = cols(signup_date = col_datetime(format = "%Y-%m-%d")))
 
 ```
@@ -281,6 +281,7 @@ last login in days shows that churned people have from 30-36 days without using 
 
 ## plotting
 *note*: in plotting phase i used AI by giving him first manual code for plot using ggplot and asking him to improve it and make it more beautiful. which cuts time.
+
 
 
 
