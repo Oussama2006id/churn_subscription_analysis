@@ -1,0 +1,434 @@
+---
+title: "Subscription Churn Analysis — Key Drivers & Retention Insights"
+author: "Oussama Ait-Idmou"
+date: "2026-02-03"
+output:
+  html_document:
+    theme: flatly
+    highlight: tango
+    toc: true
+    toc_float: true
+    number_sections: true
+    df_print: paged
+
+---
+<style>
+body {
+  font-family: "Times New Roman", serif;
+  font-size: 13pt;
+  line-height: 1.5;
+  text-align: justify;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r , include=FALSE}
+library(tidyverse)
+library(readr)
+customer_subscription_churn_usage_patterns <- read_csv("customer_subscription_churn_usage_patterns.csv", 
+                                                       col_types = cols(signup_date = col_datetime(format = "%Y-%m-%d")))
+
+```
+
+## Excecutive summary
+
+This analysis examines customer churn patterns in a subscription-based business with a high churn rate (57% of users leaving). The goal was to identify the key factors driving attrition and highlight actionable insights for retention.
+```{r,include=FALSE}
+churn_prc <- customer_subscription_churn_usage_patterns %>% group_by(churn) %>% summarise(total=n(),prc=100*(total/2800))
+
+
+```
+```{r, echo=FALSE}
+# 2. Le code du Pie Chart
+ggplot(churn_prc, aes(x = "", y = prc, fill = churn)) +
+  
+  # Création des barres
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  
+  # Transformation en cercle
+  coord_polar("y", start = 0) +
+  
+  # Ajout des étiquettes de pourcentage au milieu des parts
+  geom_text(aes(label = paste0(round(prc, 1), "%")), 
+            position = position_stack(vjust = 0.5), 
+            color = "white", size = 5, fontface = "bold") +
+  
+  # Couleurs professionnelles (Rouge pour Churn, Vert/Bleu pour No)
+  scale_fill_manual(values = c("Yes" = "#E74C3C", "No" = "#2E86C1")) +
+  
+  # Nettoyage du thème (supprimer les axes gris)
+  theme_void() +
+  labs(title = "churn repartition", fill = "churn")
+```
+
+
+The analysis revealed that payment failures are the strongest predictor of churn: customers experiencing two or more failed payments show a sharply higher likelihood of leaving. Additionally, churned customers tend to have slightly longer average support ticket counts and slightly higher engagement in early tenure months, while retained customers use the app more consistently and maintain moderate engagement levels.
+
+Overall, the findings suggest that monitoring payment behavior and early intervention for high-risk users could significantly reduce churn. Specifically, users showing multiple payment failures represent a critical threshold (“the two-payment-fail killer”) where retention efforts should be prioritized.
+
+
+
+## Business Context
+
+
+The analysis is based on a simulated subscription-based business operating under a monthly recurring revenue model. Customers subscribe to one of three pricing tiers — Basic, Standard, or Premium — each offering differentiated service levels and pricing structures.
+
+In subscription-driven business models, customer retention is critical to long-term profitability. High churn directly impacts recurring revenue, increases customer acquisition pressure, and reduces lifetime customer value. With 57% of customers classified as churned, attrition represents a significant operational and financial concern.
+
+The objective of this analysis is to identify behavioral and transactional patterns associated with churn in order to inform targeted retention strategies.
+
+## Data Overview
+
+The dataset consists of 2,800 customer records representing a snapshot of subscription activity within a specific period. Each record includes subscription details, engagement behavior, and transactional indicators associated with churn.
+
+```{r, echo=FALSE}
+glimpse(customer_subscription_churn_usage_patterns)
+```
+
+Key variables include:
+
+    Subscription plan (Basic, Standard, Premium)
+
+    Monthly fee
+
+    Average weekly usage (hours)
+
+    Number of support tickets
+
+    Payment failures
+
+    Tenure (months since signup)
+
+    Days since last login
+
+    Churn status (Yes/No)
+
+The dataset contains no duplicate entries or missing values, ensuring a clean analytical foundation. Variables primarily capture behavioral and transactional activity rather than demographic characteristics.
+
+
+
+## Methodology 
+
+The analysis followed a structured, data-driven workflow to uncover factors associated with customer churn:
+
+### Data Exploration and Validation
+Initial exploration included reviewing summary statistics, data types, and distributions to understand variable characteristics. The dataset was confirmed to be clean, with no missing values or duplicate entries.
+
+### Descriptive Analysis and Aggregation
+Key metrics were aggregated by churn status to compare behavioral and transactional patterns, including:
+
+    Payment failures
+
+    Support ticket counts
+
+    Average weekly usage hours
+
+    Tenure in months
+
+    Days since last login
+
+Additional aggregations included:
+
+Churn distribution by subscription plan
+
+Temporal patterns of churn by signup month
+
+Binned payment failure ranges to identify risk thresholds
+
+### Derived Metrics
+Average values, totals, and proportions were calculated to quantify differences between churned and retained customers. Payment failures were specifically analyzed to detect thresholds associated with sharply increased churn risk.
+
+### Focus on Key Drivers
+After aggregations, payment failures, engagement patterns, and tenure emerged as variables showing the clearest differentiation between churned and retained customers. These metrics informed subsequent visualizations and insights.
+
+## Key Insights
+I’ll outline it even though you have only 2 visuals now, with placeholders for the future ones. You can fill them later. I’ll also phrase the insights analytically, highlighting PF as the main driver.
+
+### Insight 1 “Two-Payment-Fail Threshold Signals High Churn Risk”
+**Visual**: Bar chart of binned payment failures (0,1,2,3+) vs churn rate
+```{r, include=FALSE}
+churn_rate_for_PF <- customer_subscription_churn_usage_patterns  %>% group_by(payment_failures) %>% summarise(total_cust=n(),churn_count=sum(churn=="Yes"),churn_rate=mean(churn=="Yes"),.groups = "drop")
+
+bin_pf <- churn_rate_for_PF %>% group_by(pf_bin=case_when(payment_failures == 0 ~ "0", payment_failures == 1 ~ "1",payment_failures == 2 ~ "2", payment_failures >= 3 ~ "3+")) %>% summarise(total_cus=sum(total_cust),churn_count=sum(churn_count),rate=sum(churn_rate*total_cust)/sum(total_cust))
+
+library(scales) # Required for percentage formatting
+
+bin_pf_plot <- ggplot(bin_pf, aes(x = pf_bin, y = rate)) +
+  
+  # 1. Use geom_col instead of geom_bar for cleaner syntax
+  # Add a nice fill color (e.g., 'steelblue' or map it to rate)
+  geom_col(fill = "blue", width = 0.7) +
+  
+  # 2. Add Data Labels on top of bars
+  geom_text(aes(label = percent(rate, accuracy = 0.1)), 
+            vjust = -0.5, 
+            size = 3.5, 
+            fontface = "bold") +
+  
+  # 3. Format the Y-Axis as Percentages (0% - 100%)
+  scale_y_continuous(labels = percent_format(), expand = expansion(mult = c(0, 0.1))) +
+  
+  # 4. Clean up Titles and Labels
+  labs(
+    title = "Churn Rate by Probability Bin",
+    subtitle = "Higher probability bins show significantly higher churn rates",
+    x = "Probability Bin (pf_bin)",
+    y = "Churn Rate"
+  ) +
+  
+  # 5. Professional Theme
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 45, hjust = 1), # Rotate labels if bins are long
+    panel.grid.major.x = element_blank() # Remove vertical grid lines for cleaner look
+  )
+
+
+```
+```{r, echo=FALSE}
+bin_pf_plot
+```
+**Observation**: Churn rate rises sharply from 0.40 to 0.64 when payment failures increase from 1 to 2. After 2 PFs, the rate continues to climb moderately.
+
+**Interpretation**: This identifies a critical risk threshold: customers with two or more payment failures are significantly more likely to churn. Early monitoring and targeted retention efforts at this point can prevent a large portion of potential customer loss.
+
+
+**Visual B**: Bar chart of customer counts (Retained vs Churned) across payment failure levels
+```{r,include=FALSE}
+churn_rate_for_PF <- customer_subscription_churn_usage_patterns  %>% group_by(payment_failures) %>% summarise(total_cust=n(),churn_count=sum(churn=="Yes"),churn_rate=mean(churn=="Yes"),.groups = "drop")
+ churn_rate_for_PF_2 <- churn_rate_for_PF %>% mutate(cust_staying=total_cust - churn_count)
+ 
+library(ggplot2)
+library(tidyr)  # For pivot_longer
+library(dplyr)  # For data manipulation
+
+# 1. Reshape the Data (The Secret Step)
+# We need to gather "churn_count" and "cust_staying" into a single column
+plot_data <- churn_rate_for_PF_2 %>%
+  
+  # Select the 3 columns you care about
+  select(payment_failures, churn_count, cust_staying) %>%
+  
+  # "Pivot" the data so we have a 'Status' column and a 'Count' column
+  pivot_longer(
+    cols = c(churn_count, cust_staying),
+    names_to = "Status",
+    values_to = "Count"
+  ) %>%
+  
+  # Rename the values to be pretty for the legend
+  mutate(Status = case_when(
+    Status == "churn_count" ~ "Churned",
+    Status == "cust_staying" ~ "Retained"
+  ))
+
+# 2. Build the Beautiful Plot
+cust_by_rate<- ggplot(plot_data, aes(x = as.factor(payment_failures), y = Count, fill = Status)) +
+  
+  # Create the grouped bars
+  # position_dodge() puts them side-by-side instead of stacked
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  
+  # Add the data labels on top of the bars
+  geom_text(aes(label = Count), 
+            position = position_dodge(width = 0.8), 
+            vjust = -0.5, # Pushes text slightly above the bar
+            size = 3.5, fontface = "bold", color = "#34495E") +
+  
+  # Add Professional Colors (Red for Churn, Green/Teal for Retained)
+  scale_fill_manual(values = c("Churned" = "#E74C3C", "Retained" = "#2ECC71")) +
+  
+  # Add Titles and clean up labels
+  labs(
+    title = "Impact of Payment Failures on Customer Retention",
+    subtitle = "Comparing the number of retained vs. churned customers by failure count",
+    x = "Number of Payment Failures",
+    y = "Total Customers",
+    fill = "Customer Status:"
+  ) +
+  
+  # Apply a clean, modern theme
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 15, color = "#2C3E50"),
+    plot.subtitle = element_text(color = "#7F8C8D", margin = margin(b = 15)),
+    axis.title = element_text(face = "bold", color = "#2C3E50"),
+    legend.position = "top", # Put the legend at the top for better balance
+    legend.title = element_text(face = "bold"),
+    panel.grid.major.x = element_blank(), # Remove vertical grid lines for a cleaner look
+    panel.grid.minor = element_blank()
+  )
+
+```
+```{r,echo=FALSE}
+cust_by_rate
+```
+
+
+**Observation:**
+At 0 and 1 failed payments, retained customers outnumber churned customers. However, at 2 failed payments, churned customers exceed retained customers — reinforcing the threshold effect observed in the churn rate analysis.
+
+**Interpretation:**
+Two payment failures represent a behavioral tipping point where both relative churn risk and absolute churn volume increase significantly. This threshold should serve as an operational trigger for proactive retention intervention.
+
+### Insight 2 “Higher Support Interaction Among Churned Customers”
+**Visual:** Bar chart showing average support tickets by churn status.
+```{r,include=FALSE}
+tickets_churn_pattern <- customer_subscription_churn_usage_patterns %>% group_by(churn) %>% summarise(tickets_num=sum(support_tickets),avg_tickets=mean(support_tickets),payments_fail_num=sum(payment_failures),avg_pay_fail=mean(payment_failures))
+
+avg_supp_tickets_by_churn <- ggplot(tickets_churn_pattern, aes(x = churn, y = avg_tickets, fill = churn)) +
+  geom_col(width = 0.6, alpha = 0.8) +
+  geom_text(aes(label = round(avg_tickets, 2)), vjust = -0.5, size = 4) +
+  labs(
+    title = "Average Support Tickets by Churn Status",
+    x = "Churn",
+    y = "Average Tickets"
+  ) +
+  scale_fill_manual(values = c("No" = "#4daf4a", "Yes" = "#e41a1c")) +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "none")
+
+```
+```{r,echo=FALSE}
+avg_supp_tickets_by_churn
+```
+
+
+**Observation:**
+Churned customers report a higher average number of support tickets (4.22) compared to retained customers (3.44). While the difference is moderate, it is consistent.
+
+**Interpretation:**
+Customers who eventually churn appear to experience more service friction or unresolved issues, reflected in elevated support engagement. Although support ticket volume alone is not as strong a predictor as payment failures, it reinforces the pattern that operational friction contributes to attrition risk.
+
+
+**Visual B **– Churned vs Retained Customer Counts Across Support Ticket Levels
+```{r,include=FALSE}
+tickets_range <- customer_subscription_churn_usage_patterns %>% group_by(churn,support_tickets) %>% summarise(total=n(),avg_last_login=mean(last_login_days_ago))
+st_plot <- ggplot(tickets_range, 
+       aes(x = support_tickets, 
+           y = total, 
+           color = churn, 
+           group = churn)) +
+  geom_line(linewidth = 1.4) +
+  geom_point(size = 2.5) +
+  labs(
+    title = "Customer Volume by Number of Support Tickets",
+    subtitle = "Comparison Between Churned and Non-Churned Customers",
+    x = "Number of Support Tickets",
+    y = "Total Customers",
+    color = "Churn Status"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 12),
+    axis.title = element_text(size = 12),
+    legend.position = "top"
+  )
+
+```
+```{r,echo=FALSE}
+st_plot
+```
+
+**Observation:**
+At zero support tickets, retained customers outnumber churned customers. Between 1 and 3 tickets, churned and retained counts are relatively similar. However, from 4 tickets onward, churned customers begin to significantly outnumber retained customers, with churn counts rising toward approximately 300 while retained customers decline below 100.
+
+**Interpretation:**
+Higher levels of repeated support interaction are associated with increasing churn concentration. Although no sharp threshold effect is observed (as with payment failures), sustained support activity appears to correlate with heightened churn risk. This suggests operational friction may accumulate over time, contributing to eventual attrition.
+
+### Insight 3 – Churn Rate Fluctuates Inversely with Customer Growth
+**Visual A **– Monthly Customer Volume vs Churn Rate
+```{r,echo=FALSE}
+knitr::include_graphics("plot2.png")
+
+```
+
+**Observation:**
+Monthly analysis shows that periods with higher customer sign-ups are associated with lower churn rates. Conversely, when total customer volume declines or stabilizes, churn rate increases. This suggests a negative relationship between growth and churn percentage.
+
+**Interpretation:**
+Churn rate appears partially influenced by overall customer acquisition dynamics. During periods of strong growth, churn percentage may be diluted by incoming customers. However, when growth slows, churn becomes more pronounced relative to total customer volume. This indicates that acquisition momentum can mask underlying retention risk.
+
+
+
+**Visual B** – Correlation Between Total Customers and Churn Rate
+```{r,echo=FALSE}
+knitr::include_graphics("plot1.png")
+```
+
+**Observation:**
+A negative linear relationship is observed between total customer volume and churn rate. As total customers increase, churn rate trends downward.
+
+**Interpretation:**
+The inverse relationship reinforces the idea that churn percentage is sensitive to overall customer base size. While this does not identify a behavioral driver of churn, it highlights the importance of balancing acquisition and retention strategies to maintain stable churn metrics.
+
+
+## Recommendations – Strategic Actions to Reduce Churn
+### Monitor Payment Failures Closely
+
+**Action:** Track customers as soon as they reach two failed payments.
+
+**Reason:** Churn rate jumps from 40% → 64% at this threshold (“two-payment-fail killer”).
+
+**Implementation:** Automated alerts in the system or daily reporting for customers with ≥2 PF.
+
+### Early Retention Interventions
+
+**Action:** Offer personalized interventions (email, in-app notification, or support contact) to customers at risk after 2 PF.
+
+**Reason:** Targeting the critical threshold maximizes retention ROI.
+
+**Implementation:** Provide reminders, retry payment options, or small incentives.
+
+### Leverage Support Ticket Insights
+
+**Action:** Monitor support ticket volume as a secondary risk signal.
+
+**Reason:** Customers who churn have higher average support tickets (4.22 vs 3.44).
+
+**Implementation:** Flag customers with 4+ tickets for proactive outreach or satisfaction checks.
+
+### Flag customers with 4+ tickets for proactive outreach or satisfaction checks.
+
+**Action:** Encourage consistent usage and engagement for all customers.
+
+**Reason:** Minor differences in tenure and usage indicate that retained customers engage slightly more.
+
+**Implementation:** Push notifications, gamification, loyalty programs, or monthly usage summaries.
+
+
+### Balance Acquisition and Retention
+
+**Action:** Monitor growth trends alongside churn rate.
+
+**Reason:** Churn rate is inversely related to total customer volume; slow growth periods amplify churn.
+
+**Implementation:** During slow acquisition months, increase retention campaigns and monitor at-risk segments more closely.
+
+
+### Plan-Specific Retention Strategies
+
+**Action:** Consider minor plan-specific interventions.
+
+**Reason:** PF differences exist across Basic, Standard, and Premium, but all show the same risk trend.
+
+**Implementation:** Tailor retention messaging or payment reminders by plan tier if needed.
+
+
+## Conclusion
+The analysis of the subscription dataset highlights payment failures (PF) as the primary driver of churn, with a critical threshold at two failed payments where churn risk escalates sharply. Support tickets (ST) serve as a secondary signal, indicating that customers experiencing higher friction are more likely to leave. Minor differences in usage and tenure provide contextual insights, while periods of slower customer growth amplify churn percentages.
+
+Overall, the findings point to actionable retention strategies: proactively monitoring PF, addressing repeated support needs, and balancing acquisition with retention efforts can significantly reduce customer attrition.
+
+
+
+
+
+
+
+
+
