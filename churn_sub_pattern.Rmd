@@ -27,7 +27,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r , include=FALSE}
 library(tidyverse)
 library(readr)
-customer_subscription_churn_usage_patterns <- read_csv("customer_subscription_churn_usage_patterns.csv", 
+customer_subscription_churn_usage_patterns <- read_csv("data/customer_subscription_churn_usage_patterns.csv", 
                                                        col_types = cols(signup_date = col_datetime(format = "%Y-%m-%d")))
 
 ```
@@ -480,6 +480,7 @@ The inverse relationship reinforces the idea that churn percentage is sensitive 
 The analysis of the subscription dataset highlights payment failures (PF) as the primary driver of churn, with a critical threshold at two failed payments where churn risk escalates sharply. Support tickets (ST) serve as a secondary signal, indicating that customers experiencing higher friction are more likely to leave. Minor differences in usage and tenure provide contextual insights, while periods of slower customer growth amplify churn percentages.
 
 Overall, the findings point to actionable retention strategies: proactively monitoring PF, addressing repeated support needs, and balancing acquisition with retention efforts can significantly reduce customer attrition.
+
 
 
 
