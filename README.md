@@ -25,4 +25,4 @@ Identify behavioral and engagement patterns associated with customer churn and h
 Live version of the report:  
 👉 [report in rpubs](https://rpubs.com/OUss0606/1399182)
 👉 [Html file](https://github.com/Oussama2006id/churn_subscription_analysis/blob/main/churn_sub_pattern.html)
-
+👉 [full process of analysis](https://rpubs.com/OUss0606/1399981).
