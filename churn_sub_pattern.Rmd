@@ -27,7 +27,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r , include=FALSE}
 library(tidyverse)
 library(readr)
-customer_subscription_churn_usage_patterns <- read_csv("data/customer_subscription_churn_usage_patterns.csv", 
+customer_subscription_churn_usage_patterns <- read_csv("customer_subscription_churn_usage_patterns.csv", 
                                                        col_types = cols(signup_date = col_datetime(format = "%Y-%m-%d")))
 
 ```
@@ -342,9 +342,50 @@ Higher levels of repeated support interaction are associated with increasing chu
 
 ### Insight 3 – Churn Rate Fluctuates Inversely with Customer Growth
 **Visual A **– Monthly Customer Volume vs Churn Rate
-```{r,echo=FALSE}
-knitr::include_graphics("plot2.png")
+```{r,include=FALSE}
+churn_rate_for_MONTHS <- customer_subscription_churn_usage_patterns %>% mutate(month=make_date(year(signup_date),month(signup_date),1)) %>% group_by(month) %>% summarise(total_cust=n(),churn_count=sum(churn=="Yes"),churn_rate=mean(churn=="Yes"),.groups = "drop")
 
+coeff <- 200
+
+plot2 <- ggplot(churn_rate_for_MONTHS, aes(x = month)) +
+  
+  # Axe de gauche : Total Customers (Barres ou Ligne)
+  geom_line(aes(y = total_cust, color = "Total Customers"), linewidth  = 1.2) +
+  geom_point(aes(y = total_cust, color = "Total Customers"), size= 2) +
+  
+  # Axe de droite : Churn Rate (transformé)
+  # On multiplie par 'coeff' pour le monter, et on ajoute un linetype différent
+  geom_line(aes(y = churn_rate * coeff, color = "Churn Rate"), size = 1.2, linetype = "dashed") +
+  geom_point(aes(y = churn_rate * coeff, color = "Churn Rate"), shape = 15, size = 2) +
+  
+  # Création du deuxième axe Y
+  scale_y_continuous(
+    name = "number of Clients",
+    # C'est ici que la magie opère : on divise par coeff pour l'étiquette
+    sec.axis = sec_axis(~./coeff, name = "churn prc", labels = scales::percent)
+  ) +
+  
+  # Gestion des couleurs manuelles
+  scale_color_manual(values = c("Total Customers" = "#2E8B57", "Churn Rate" = "#CD5C5C")) +
+  
+  # Titres et thèmes
+  labs(
+    title = "Evolution : Custumers vs Churn",
+    x = "Month",
+    color = "Legende"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.title.y.left = element_text(color = "#2E8B57", face = "bold"),
+    axis.text.y.left = element_text(color = "#2E8B57"),
+    axis.title.y.right = element_text(color = "#CD5C5C", face = "bold"),
+    axis.text.y.right = element_text(color = "#CD5C5C"),
+    legend.position = "bottom"
+  )
+```
+```{r,echo=FALSE}
+plot2
 ```
 
 **Observation:**
@@ -356,8 +397,24 @@ Churn rate appears partially influenced by overall customer acquisition dynamics
 
 
 **Visual B** – Correlation Between Total Customers and Churn Rate
+```{r,include= FALSE,echo= FALSE}
+plot1 <- ggplot(churn_rate_for_MONTHS, aes(x = total_cust, y = churn_rate)) +
+  # Ajout des points
+  geom_point(color = "blue", size = 3, alpha = 0.6) +
+  # Ajout de la ligne de régression (méthode linéaire 'lm') et de la zone de confiance
+  geom_smooth(method = "lm", color = "darkblue", fill = "lightblue") +
+  # Titres et thèmes
+  labs(
+    title = "Correlation : Number of Clients vs rate of Churn",
+    subtitle = "the ligne going down prouve there is no positive correlation",
+    x = "total number of clients",
+    y = "churn rate"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", size = 14))
+```
 ```{r,echo=FALSE}
-knitr::include_graphics("plot1.png")
+plot1
 ```
 
 **Observation:**
@@ -423,12 +480,6 @@ The inverse relationship reinforces the idea that churn percentage is sensitive 
 The analysis of the subscription dataset highlights payment failures (PF) as the primary driver of churn, with a critical threshold at two failed payments where churn risk escalates sharply. Support tickets (ST) serve as a secondary signal, indicating that customers experiencing higher friction are more likely to leave. Minor differences in usage and tenure provide contextual insights, while periods of slower customer growth amplify churn percentages.
 
 Overall, the findings point to actionable retention strategies: proactively monitoring PF, addressing repeated support needs, and balancing acquisition with retention efforts can significantly reduce customer attrition.
-
-
-
-
-
-
 
 
 
