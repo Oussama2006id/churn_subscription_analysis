@@ -1,0 +1,286 @@
+---
+title: "Summary_of_churn_analysis_and_exploration_in_R"
+author: "Oussama Ait-Idmou"
+date: "2026-02-03"
+output:
+  html_document:
+    theme: flatly
+    highlight: tango
+    toc: true
+    toc_float: true
+    number_sections: true
+    df_print: paged
+
+---
+<style>
+body {
+  font-family: "Times New Roman", serif;
+  font-size: 13pt;
+  line-height: 1.5;
+  text-align: justify;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Preparing the data
+
+for preparing and importing dataset or the csv
+
+```{r , include=TRUE}
+library(tidyverse)
+library(readr)
+customer_subscription_churn_usage_patterns <- read_csv("customer_subscription_churn_usage_patterns.csv", 
+                                                       col_types = cols(signup_date = col_datetime(format = "%Y-%m-%d")))
+
+```
+
+```{r}
+knitr::kable(head(customer_subscription_churn_usage_patterns,10))
+```
+## first look at data
+```{r}
+glimpse(customer_subscription_churn_usage_patterns)
+summary(customer_subscription_churn_usage_patterns)
+```
+the data haves 2800 rows and summary function summarize each columns to see medians max and statistical summary for example the max support tickets is 8. 
+
+After looking at the table and understand columns and what they mean its time to check for the credibility of data.
+
+## cleaning
+
+### checking for nulls
+
+```{r }
+colSums(is.na(customer_subscription_churn_usage_patterns))
+customer_subscription_churn_usage_patterns %>% summarise(across(everything(), ~sum(is.na(.))))
+```
+
+there is no nulls in the dataset
+
+### checking for dupes
+
+```{r}
+
+library(janitor)
+get_dupes(customer_subscription_churn_usage_patterns)
+
+```
+means there are no dupes in the dataset 
+
+dataset is clean.
+
+
+## exploring data
+Before diving into detailed analysis, we performed a preliminary exploration to understand the dataset and the general behavior of customers. This step helps frame the business context and highlights initial patterns worth investigating further.
+
+```{r}
+churn_prc <- customer_subscription_churn_usage_patterns %>% group_by(churn) %>% summarise(total=n(),prc=100*(total/2800))
+knitr::kable(head(churn_prc))
+```
+Examined the proportion of churned vs retained customers, identifying that 57% of users had churned.
+
+```{r}
+plan_prc <- customer_subscription_churn_usage_patterns %>% group_by(plan_type) %>% summarise(total=n(),prc=100*(total/2800))
+knitr::kable(head(plan_prc))
+```
+Reviewed subscription plans (Basic, Standard, Premium) to ensure balanced representation and identify potential plan-specific trends.  And as we see the distr of clients in plans are same.
+
+
+```{r}
+plan_churn_prc <- customer_subscription_churn_usage_patterns %>% group_by(churn, plan_type) %>% summarise(total = n(), .groups = "drop") %>%  group_by(churn) %>%  mutate(prc = 100 * total / sum(total)) %>%  ungroup()
+knitr::kable(head(plan_churn_prc))
+```
+Checked how churn was distributed within each plan to get an early sense of whether subscription type influenced attrition.
+
+## aggregating data
+### support tickets and payment failures
+#### general look
+to look more into other variables, i did need to see average support tickets and payment failures by churn state and see total numbers and comapare if it respects the ration of 57% and 43%.
+```{r}
+tickets_churn_pattern <- customer_subscription_churn_usage_patterns %>% group_by(churn) %>% summarise(tickets_num=sum(support_tickets),avg_tickets=mean(support_tickets),payments_fail_num=sum(payment_failures),avg_pay_fail=mean(payment_failures))
+knitr::kable(head(tickets_churn_pattern))
+```
+difference between avg support tickets is 4.22 for yes and 3.44 for no, meaning that clients who leaves haves more support tickets.
+for payment failures also 2.8 for leaving and 2 for staying meaning they tend to have more payment failures.
+and for total of these variables they show higher sum more than the ratio meaning it not because of churn yes clients are more than the others.
+
+#### tickets and last login
+```{r}
+tickets_range <- customer_subscription_churn_usage_patterns %>% group_by(churn,support_tickets) %>% summarise(total=n(),avg_last_login=mean(last_login_days_ago))
+knitr::kable(head(tickets_range))
+```
+This aggregation summarizes customer behavior by churn status and number of support tickets. 
+This helps identify patterns between support interactions and churn, highlighting whether higher support ticket volumes correlate with increased attrition.
+
+#### payment failure
+
+```{r}
+PF_range <- customer_subscription_churn_usage_patterns %>% group_by(churn,payment_failures) %>% summarise(total=n(),avg_tickets=mean(support_tickets))
+knitr::kable(head(PF_range))
+```
+Purpose: This aggregation analyzes the relationship between payment failures (PF) and churn:
+
+Total customers are counted for each combination of churn status (Yes/No) and number of payment failures.
+
+Average support tickets per group are calculated to see how support interactions vary with payment failures.
+
+This helps identify whether customers with more payment failures are more likely to churn and whether higher PFs coincide with increased support needs.
+
+#### churn by month
+```{r}
+churn_rate_for_MONTHS <- customer_subscription_churn_usage_patterns %>% mutate(month=make_date(year(signup_date),month(signup_date),1)) %>% group_by(month) %>% summarise(total_cust=n(),churn_count=sum(churn=="Yes"),churn_rate=mean(churn=="Yes"),.groups = "drop")
+knitr::kable(head(churn_rate_for_MONTHS))
+```
+Purpose: This aggregation calculates monthly churn trends to understand how churn evolves over time:
+
+The signup_date is converted to a month-level date to group customers by the month they signed up.
+
+For each month, it computes:
+
+total_cust: total number of customers who signed up that month
+
+churn_count: number of customers who churned
+
+churn_rate: proportion of churned customers for that month
+
+This allows us to observe patterns, such as whether certain months have higher churn rates or if churn correlates with customer acquisition volume.
+
+#### churn by payment failures
+```{r}
+churn_rate_for_PF <- customer_subscription_churn_usage_patterns  %>% group_by(payment_failures) %>% summarise(total_cust=n(),churn_count=sum(churn=="Yes"),churn_rate=mean(churn=="Yes"),.groups = "drop")
+
+knitr::kable(head(churn_rate_for_PF))
+
+bin_pf <- churn_rate_for_PF %>% group_by(pf_bin=case_when(payment_failures == 0 ~ "0", payment_failures == 1 ~ "1",payment_failures == 2 ~ "2", payment_failures >= 3 ~ "3+")) %>% summarise(total_cus=sum(total_cust),churn_count=sum(churn_count),rate=sum(churn_rate*total_cust)/sum(total_cust))
+
+knitr::kable(head(bin_pf))
+```
+Purpose: This code investigates the relationship between payment failures (PF) and churn risk, identifying critical thresholds.
+
+churn_rate_for_PF
+
+Groups customers by payment_failures.
+
+Calculates for each PF count:
+
+total_cust: total customers with that number of failed payments
+
+churn_count: number of churned customers
+
+churn_rate: proportion of churned customers
+
+This provides a raw view of how churn changes as payment failures increase.
+
+bin_pf
+
+Groups the PF counts into binned categories: 0, 1, 2, 3+
+
+Aggregates totals and computes a weighted churn rate for each bin.
+
+This makes it easier to visualize churn patterns and highlights the “two-payment-fail tipping point”, where churn jumps significantly.
+
+#### plans and pf
+```{r}
+plan_total_pf <- customer_subscription_churn_usage_patterns %>% group_by(plan_type,churn) %>% summarise(total=n(),PF=sum(payment_failures),avg_pf=mean(payment_failures))
+knitr::kable(head(plan_total_pf))
+```
+Purpose: This code explores payment failures across different subscription plans and how they relate to churn.
+
+Groups data by plan_type (Basic, Standard, Premium) and churn status (Yes/No).
+
+For each combination, calculates:
+
+total: number of customers
+
+PF: total number of payment failures
+
+avg_pf: average number of payment failures
+
+Insight: This helps identify whether certain plans are more prone to payment issues and churn, providing a plan-specific view of risk.
+
+### tenure
+#### tenure by churn
+```{r}
+tenure_patterns <- customer_subscription_churn_usage_patterns %>% group_by(churn) %>% summarise(total=sum(tenure_months),avr_tenure=mean(tenure_months))
+knitr::kable(head(tenure_patterns))
+```
+Purpose: This code examines customer tenure in relation to churn.
+
+Groups the dataset by churn status (Yes/No).
+
+Calculates:
+
+total: total months of tenure for each churn group
+
+avr_tenure: average tenure (in months) per group
+
+Insight: This gives a general understanding of how long churned vs. retained customers have been with the service, helping to see whether longer-tenured customers are more or less likely to leave.
+
+### hours usage and last login
+```{r}
+avg_hours_pattern <- customer_subscription_churn_usage_patterns %>% group_by(churn) %>% summarise(total=sum(avg_weekly_usage_hours),avr_hours=mean(avg_weekly_usage_hours))
+knitr::kable(head(avg_hours_pattern))
+```
+avg_hours_pattern
+Purpose: Analyzes average weekly app usage for churned vs. retained customers.
+
+Groups by churn status.
+
+Calculates:
+
+total: total weekly usage hours for each group
+
+avr_hours: average weekly usage per customer
+
+Insight: Helps understand whether more engaged users (higher weekly usage) are less likely to churn.
+the avg hours are same which means that for churn variable it shows that they both use it for same period
+13 yes 12 no.
+```{r}
+mean_last_login <- customer_subscription_churn_usage_patterns %>% group_by(churn) %>% summarise(avg=mean(last_login_days_ago))
+knitr::kable(head(mean_last_login))
+```
+mean_last_login
+Purpose: Measures recency of activity among customers.
+
+Groups by churn.
+
+Calculates the average number of days since the last login for each group.
+
+Insight: Provides a sense of whether recently active customers are more likely to stay, which can help in identifying dormant users at risk of churning.
+it shows that churned tend to have higher avg last login days.
+
+
+## First spotted patterns,trends or difference
+
+the patterns are organized by the importance.
+
+### payment failures
+the bin_pf dataframe shows that 2 payment failures is where churn no clients number start to decrease and churn yes increase meaning that *2 payment failures is dead point*.
+also the number of payment failures for churned people is higher meaning they *get more payment failures*.
+and the *churn rate from 1 to 2 jumps from 0.4 to 0.64*.
+
+### support tickets
+support tickets shows that churned people have done more support tickets than staying people with an average of 4.22 compared to 3.44 making a difference of approximatly 1 support tickets.
+
+
+### plans
+plans doesnt show difference in term of churn state they are same arround 33.3% for each and also same in payment failures.
+
+### others
+for avg weekly hour usage it shows a difference of 1h from 13 for no and 12 for yes meaning the difference is little.
+
+for tenure months they are the same arround 18.5.
+
+last login in days shows that churned people have from 30-36 days without using the subscription while people who stayed 22-29 days.
+
+
+
+
+## plotting
+*note*: in plotting phase i used AI by giving him first manual code for plot using ggplot and asking him to improve it and make it more beautiful. which cuts time.
+
+
+
